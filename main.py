@@ -26,7 +26,7 @@ async def get_user_manager() -> UserManager:
 
 # 创建自定义用户管理类
 class CustomFastAPIUsers(FastAPIUsers[U, ID], Generic[U, ID]):
-    def get_custom_verify_router(self, user_schema: Type[schemas.U]):
+    def get_verify_router(self, user_schema: Type[schemas.U]):
         router = APIRouter()
 
         @router.post(
@@ -65,7 +65,7 @@ app = FastAPI()
 
 # 注册自定义验证路由
 app.include_router(
-    fastapi_users.get_custom_verify_router(CustomUserRead),
+    fastapi_users.get_verify_router(CustomUserRead),
     prefix="/auth",
     tags=["auth"],
 )
