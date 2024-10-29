@@ -13,6 +13,7 @@ from schemas import CustomUserRead
 U = TypeVar("U", bound=schemas.BaseUser)
 ID = TypeVar("ID")
 
+
 # 用户管理器依赖
 class UserManager(BaseUserManager[User, uuid.UUID]):
     def __init__(self):
@@ -24,52 +25,52 @@ async def get_user_manager() -> UserManager:
 
 
 # 创建自定义用户管理类
-
 class CustomFastAPIUsers(FastAPIUsers[U, ID], Generic[U, ID]):
-    pass
-
-
-def get_custom_verify_router(
-    get_user_manager: UserManagerDependency[schemas.U, uuid.UUID],
-    user_schema: Type[schemas.U],
-):
-    router = APIRouter()
-
-    @router.post(
-        "/request-verify-token",
-        status_code=status.HTTP_202_ACCEPTED,
-        name="verify:request-token",
-    )
-    async def request_verify_token(
-        request: Request,
-        email: str = Body(..., embed=True),  # 修改为 str 类型
-        user_manager: BaseUserManager[schemas.U, uuid.UUID] = Depends(
-            get_user_manager
-        ),  # 更新 ID 为 uuid.UUID
+    @classmethod
+    def get_custom_verify_router(
+        cls,
+        get_user_manager: UserManagerDependency[schemas.U, uuid.UUID],
+        user_schema: Type[schemas.U],
     ):
-        try:
-            user = await user_manager.get_by_email(email)
-            await user_manager.request_verify(user)
-        except (
-            exceptions.UserNotExists,
-            exceptions.UserInactive,
-            exceptions.UserAlreadyVerified,
+        router = APIRouter()
+
+        @router.post(
+            "/request-verify-token",
+            status_code=status.HTTP_202_ACCEPTED,
+            name="verify:request-token",
+        )
+        async def request_verify_token(
+            request: Request,
+            email: str = Body(..., embed=True),  # 修改为 str 类型
+            user_manager: BaseUserManager[schemas.U, uuid.UUID] = Depends(
+                get_user_manager
+            ),  # 更新 ID 为 uuid.UUID
         ):
-            pass
+            try:
+                user = await user_manager.get_by_email(email)
+                await user_manager.request_verify(user)
+            except (
+                exceptions.UserNotExists,
+                exceptions.UserInactive,
+                exceptions.UserAlreadyVerified,
+            ):
+                pass
 
-        return None
+            return None
 
-    return router
+        return router
 
 
 # FastAPI 用户实例
-fastapi_users = CustomFastAPIUsers[User, uuid.UUID](get_user_manager, [])  # 添加认证后端
+fastapi_users = CustomFastAPIUsers[User, uuid.UUID](
+    get_user_manager, []
+)  # 添加认证后端
 
 app = FastAPI()
 
 # 注册自定义验证路由
 app.include_router(
-    get_custom_verify_router(get_user_manager, CustomUserRead),
+    fastapi_users.get_custom_verify_router(get_user_manager, CustomUserRead),
     prefix="/auth",
     tags=["auth"],
 )
