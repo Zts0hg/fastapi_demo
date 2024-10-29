@@ -1,12 +1,12 @@
 # main.py
 import uuid
+from typing import Type
 
 import uvicorn
-from fastapi import FastAPI
-from fastapi_users import BaseUserManager, FastAPIUsers
-from fastapi_users.manager import UserManagerDependency
+from fastapi import APIRouter, Body, Depends, FastAPI, Request, status
+from fastapi_users import BaseUserManager, FastAPIUsers, exceptions, schemas
+from fastapi_users.manager import BaseUserManager, UserManagerDependency
 
-from custom_verify import get_custom_verify_router
 from db import User, fake_db
 from schemas import CustomUserRead
 
@@ -21,6 +21,39 @@ async def get_user_manager() -> UserManager:
     yield UserManager()
 
 
+def get_custom_verify_router(
+    get_user_manager: UserManagerDependency[schemas.U, uuid.UUID],
+    user_schema: Type[schemas.U],
+):
+    router = APIRouter()
+
+    @router.post(
+        "/request-verify-token",
+        status_code=status.HTTP_202_ACCEPTED,
+        name="verify:request-token",
+    )
+    async def request_verify_token(
+        request: Request,
+        email: str = Body(..., embed=True),  # 修改为 str 类型
+        user_manager: BaseUserManager[schemas.U, uuid.UUID] = Depends(
+            get_user_manager
+        ),  # 更新 ID 为 uuid.UUID
+    ):
+        try:
+            user = await user_manager.get_by_email(email)
+            await user_manager.request_verify(user)
+        except (
+            exceptions.UserNotExists,
+            exceptions.UserInactive,
+            exceptions.UserAlreadyVerified,
+        ):
+            pass
+
+        return None
+
+    return router
+
+
 # FastAPI 用户实例
 fastapi_users = FastAPIUsers[User, uuid.UUID](get_user_manager, [])  # 添加认证后端
 
@@ -28,7 +61,7 @@ app = FastAPI()
 
 # 注册自定义验证路由
 app.include_router(
-    fastapi_users.get_custom_verify_router(get_user_manager, CustomUserRead),
+    get_custom_verify_router(get_user_manager, CustomUserRead),
     prefix="/auth",
     tags=["auth"],
 )
