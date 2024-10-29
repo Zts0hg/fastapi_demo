@@ -1,6 +1,6 @@
 # main.py
 import uuid
-from typing import Type
+from typing import Generic, Type, TypeVar
 
 import uvicorn
 from fastapi import APIRouter, Body, Depends, FastAPI, Request, status
@@ -10,6 +10,8 @@ from fastapi_users.manager import BaseUserManager, UserManagerDependency
 from db import User, fake_db
 from schemas import CustomUserRead
 
+U = TypeVar("U", bound=schemas.BaseUser)
+ID = TypeVar("ID")
 
 # 用户管理器依赖
 class UserManager(BaseUserManager[User, uuid.UUID]):
@@ -19,6 +21,12 @@ class UserManager(BaseUserManager[User, uuid.UUID]):
 
 async def get_user_manager() -> UserManager:
     yield UserManager()
+
+
+# 创建自定义用户管理类
+
+class CustomFastAPIUsers(FastAPIUsers[U, ID], Generic[U, ID]):
+    pass
 
 
 def get_custom_verify_router(
@@ -55,7 +63,7 @@ def get_custom_verify_router(
 
 
 # FastAPI 用户实例
-fastapi_users = FastAPIUsers[User, uuid.UUID](get_user_manager, [])  # 添加认证后端
+fastapi_users = CustomFastAPIUsers[User, uuid.UUID](get_user_manager, [])  # 添加认证后端
 
 app = FastAPI()
 
